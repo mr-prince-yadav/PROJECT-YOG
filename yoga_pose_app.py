@@ -36,54 +36,45 @@ st.header("Your Webcam Feed")
 frame_placeholder = st.empty()
 
 # --- Webcam Loop ---
-cap = cv2.VideoCapture(0)
+# --- Camera Input ---
+if run:
+    img_file = st.camera_input("Turn on webcam")
 
-while run:
-    ret, frame = cap.read()
-    if not ret:
-        st.error("Webcam feed ended.")
-        break
+    if img_file is not None:
+        # Convert to OpenCV image
+        file_bytes = np.asarray(bytearray(img_file.read()), dtype=np.uint8)
+        frame = cv2.imdecode(file_bytes, 1)
 
-    frame = cv2.flip(frame, 1)
-    image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    results = pose.process(image_rgb)
+        image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = pose.process(image_rgb)
 
-    if results.pose_landmarks:
-        mp_drawing.draw_landmarks(
-            frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS,
-            mp_drawing.DrawingSpec(color=(245, 117, 66), thickness=2, circle_radius=2),
-            mp_drawing.DrawingSpec(color=(245, 66, 230), thickness=2, circle_radius=2)
-        )
+        if results.pose_landmarks:
+            mp_drawing.draw_landmarks(
+                frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS,
+                mp_drawing.DrawingSpec(color=(245, 117, 66), thickness=2, circle_radius=2),
+                mp_drawing.DrawingSpec(color=(245, 66, 230), thickness=2, circle_radius=2)
+            )
+            try:
+                # Extract landmarks and make prediction
+                landmarks = results.pose_landmarks.landmark
+                row = [v for lm in landmarks for v in (lm.x, lm.y, lm.z, lm.visibility)]
+                X = np.array(row).reshape(1, -1)
 
-        try:
-            # Extract landmarks and make prediction
-            landmarks = results.pose_landmarks.landmark
-            row = []
-            for lm in landmarks:
-                row.extend([lm.x, lm.y, lm.z, lm.visibility])
-            
-            X = np.array(row).reshape(1, -1)
-            
-            pose_name = model.predict(X)[0]
-            confidence = model.predict_proba(X)[0].max()
+                pose_name = model.predict(X)[0]
+                confidence = model.predict_proba(X)[0].max()
 
-            # Update sidebar UI
-            status_placeholder.success(f"Detected: **{pose_name}**")
-            confidence_bar.progress(float(confidence))
-            confidence_text.markdown(f"**{confidence*100:.1f}%**")
+                status_placeholder.success(f"Detected: **{pose_name}**")
+                confidence_bar.progress(float(confidence))
+                confidence_text.markdown(f"**{confidence*100:.1f}%**")
+            except Exception:
+                status_placeholder.error("Error during prediction.")
+        else:
+            status_placeholder.warning("No person detected.")
+            confidence_bar.progress(0)
+            confidence_text.text("")
 
-        except Exception as e:
-            status_placeholder.error("Error during prediction.")
-    else:
-        # If no landmarks are detected, reset the status
-        status_placeholder.warning("No person detected.")
-        confidence_bar.progress(0)
-        confidence_text.text("")
+        # Display frame with landmarks
+        frame_placeholder.image(frame, channels="BGR", use_container_width=True)
 
-    # Display the webcam feed
-    frame_placeholder.image(frame, channels="BGR", use_container_width=True)
-
-cap.release()
-cv2.destroyAllWindows()
 
 st.success("Webcam has been turned off.")
