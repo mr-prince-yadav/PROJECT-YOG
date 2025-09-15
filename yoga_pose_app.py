@@ -1,8 +1,8 @@
 import streamlit as st
-import cv2
 import numpy as np
 import pickle
 from ultralytics import YOLO
+from PIL import Image
 
 # --- Load Yoga Pose Classifier ---
 try:
@@ -13,10 +13,10 @@ except FileNotFoundError:
     st.stop()
 
 # --- Load YOLOv8 Pose model ---
-pose_model = YOLO("yolov8n-pose.pt")   # download auto on first run
+pose_model = YOLO("yolov8n-pose.pt")   # auto-download on first run
 
 # --- App UI ---
-st.title("🧘‍♀️ AI Yoga Pose Detector (YOLOv8)")
+st.title("AI Yoga Pose Detector (YOLOv8)")
 st.markdown("This app uses YOLOv8 pose detection to classify yoga poses.")
 
 # --- Sidebar ---
@@ -38,19 +38,17 @@ if run:
     img_file = st.camera_input("Turn on webcam")
 
     if img_file is not None:
-        # Convert file to OpenCV image
-        file_bytes = np.asarray(bytearray(img_file.read()), dtype=np.uint8)
-        frame = cv2.imdecode(file_bytes, 1)
+        # Open image with PIL
+        image = Image.open(img_file)
+        frame = np.array(image)  # Convert to numpy array (RGB)
 
         # Run YOLOv8 pose detection
         results = pose_model.predict(frame, verbose=False)
 
         if results and results[0].keypoints is not None:
-            # Keypoints shape: (num_people, num_keypoints, 3)
             kpts = results[0].keypoints.xy.cpu().numpy()
             if len(kpts) > 0:
-                person = kpts[0]  # take first person
-                # Flatten keypoints into row (x,y)
+                person = kpts[0]
                 row = person.flatten()
                 X = np.array(row).reshape(1, -1)
 
@@ -72,4 +70,4 @@ if run:
 
         # Annotated frame from YOLO
         annotated_frame = results[0].plot()
-        frame_placeholder.image(annotated_frame, channels="BGR", use_container_width=True)
+        frame_placeholder.image(annotated_frame, channels="RGB", use_container_width=True)
