@@ -4,3 +4,4 @@ ultralytics
 numpy
 scikit-learn
 pandas
+opencv-python-headless==4.7.0.72
