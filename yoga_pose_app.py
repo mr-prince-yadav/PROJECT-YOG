@@ -2,71 +2,64 @@ import streamlit as st
 import numpy as np
 import pickle
 from PIL import Image
-from ultralytics import YOLO
+import mediapipe as mp
 
-# --- Load Yoga Pose Classifier ---
+# Load Yoga Pose Classifier
 try:
     with open("yoga_pose_model.pkl", "rb") as f:
         clf = pickle.load(f)
 except FileNotFoundError:
-    st.error("Model file not found. Place 'yoga_pose_model.pkl' in the app directory.")
+    st.error("Place 'yoga_pose_model.pkl' in the app directory.")
     st.stop()
 
-# --- Load YOLOv8 Pose Model ---
-pose_model = YOLO("yolov8n-pose.pt")  # Auto-download if not present
+# Mediapipe setup
+mp_pose = mp.solutions.pose
+pose = mp_pose.Pose(static_image_mode=True, min_detection_confidence=0.5)
+mp_drawing = mp.solutions.drawing_utils
 
-# --- Streamlit UI ---
-st.title("AI Yoga Pose Detector (YOLOv8)")
-st.markdown("Detect yoga poses using YOLOv8 pose estimation.")
+# Streamlit UI
+st.title("AI Yoga Pose Detector (Mediapipe)")
+st.markdown("Detect yoga poses using Mediapipe Pose.")
 
 # Sidebar controls
 st.sidebar.header("Controls")
 run = st.sidebar.checkbox("Start Webcam", value=True)
-st.sidebar.markdown("---")
 st.sidebar.header("Detection Status")
 status_placeholder = st.sidebar.empty()
-st.sidebar.markdown("---")
 st.sidebar.header("Confidence")
 confidence_bar = st.sidebar.progress(0)
 confidence_text = st.sidebar.empty()
 
-# Main webcam feed
 st.header("Your Webcam Feed")
 frame_placeholder = st.empty()
 
 if run:
     img_file = st.camera_input("Turn on webcam")
-
     if img_file is not None:
         image = Image.open(img_file)
-        frame = np.array(image)  # Convert PIL to numpy array (RGB)
+        frame = np.array(image)
 
-        # Run YOLOv8 pose detection
-        results = pose_model.predict(frame, verbose=False)
+        # Mediapipe Pose Detection
+        results = pose.process(frame)
+        if results.pose_landmarks:
+            landmarks = results.pose_landmarks.landmark
+            row = []
+            for lm in landmarks:
+                row.extend([lm.x, lm.y, lm.z, lm.visibility])
+            X = np.array(row).reshape(1, -1)
 
-        if results and results[0].keypoints is not None:
-            kpts = results[0].keypoints.xy.cpu().numpy()
-            if len(kpts) > 0:
-                person = kpts[0]  # Take first detected person
-                row = person.flatten()
-                X = np.array(row).reshape(1, -1)
+            # Predict pose
+            pose_name = clf.predict(X)[0]
+            confidence = clf.predict_proba(X)[0].max()
+            status_placeholder.success(f"Detected: **{pose_name}**")
+            confidence_bar.progress(float(confidence))
+            confidence_text.markdown(f"**{confidence*100:.1f}%**")
 
-                # Predict yoga pose
-                pose_name = clf.predict(X)[0]
-                confidence = clf.predict_proba(X)[0].max()
-
-                status_placeholder.success(f"Detected: **{pose_name}**")
-                confidence_bar.progress(float(confidence))
-                confidence_text.markdown(f"**{confidence*100:.1f}%**")
-            else:
-                status_placeholder.warning("No person detected.")
-                confidence_bar.progress(0)
-                confidence_text.text("")
+            # Annotate frame
+            mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
         else:
             status_placeholder.warning("No person detected.")
             confidence_bar.progress(0)
             confidence_text.text("")
 
-        # Annotated frame from YOLO
-        annotated_frame = results[0].plot()
-        frame_placeholder.image(annotated_frame, channels="RGB", use_container_width=True)
+        frame_placeholder.image(frame, channels="RGB", use_container_width=True)
