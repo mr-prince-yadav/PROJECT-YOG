@@ -4,14 +4,15 @@ import mediapipe as mp
 import numpy as np
 import pickle
 
-# --- Load Model and Initialize MediaPipe ---
+# --- Load Model ---
 try:
-    with open('yoga_pose_model.pkl', 'rb') as f:
+    with open("yoga_pose_model.pkl", "rb") as f:
         model = pickle.load(f)
 except FileNotFoundError:
     st.error("Model file not found. Please ensure 'yoga_pose_model.pkl' is in the same directory.")
     st.stop()
 
+# --- Mediapipe setup ---
 mp_pose = mp.solutions.pose
 pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
 mp_drawing = mp.solutions.drawing_utils
@@ -22,7 +23,7 @@ st.markdown("This app uses your webcam to detect your yoga pose in real-time.")
 
 # --- Sidebar ---
 st.sidebar.header("Controls")
-run = st.sidebar.checkbox('Start Webcam', value=True)
+run = st.sidebar.checkbox("Start Webcam", value=True)
 st.sidebar.markdown("---")
 st.sidebar.header("Detection Status")
 status_placeholder = st.sidebar.empty()
@@ -31,17 +32,16 @@ st.sidebar.header("Confidence")
 confidence_bar = st.sidebar.progress(0)
 confidence_text = st.sidebar.empty()
 
-# --- Main Layout (Single Column) ---
+# --- Main ---
 st.header("Your Webcam Feed")
 frame_placeholder = st.empty()
 
-# --- Webcam Loop ---
 # --- Camera Input ---
 if run:
     img_file = st.camera_input("Turn on webcam")
 
     if img_file is not None:
-        # Convert to OpenCV image
+        # Convert file to OpenCV image
         file_bytes = np.asarray(bytearray(img_file.read()), dtype=np.uint8)
         frame = cv2.imdecode(file_bytes, 1)
 
@@ -50,12 +50,14 @@ if run:
 
         if results.pose_landmarks:
             mp_drawing.draw_landmarks(
-                frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS,
+                frame,
+                results.pose_landmarks,
+                mp_pose.POSE_CONNECTIONS,
                 mp_drawing.DrawingSpec(color=(245, 117, 66), thickness=2, circle_radius=2),
-                mp_drawing.DrawingSpec(color=(245, 66, 230), thickness=2, circle_radius=2)
+                mp_drawing.DrawingSpec(color=(245, 66, 230), thickness=2, circle_radius=2),
             )
             try:
-                # Extract landmarks and make prediction
+                # Extract landmarks
                 landmarks = results.pose_landmarks.landmark
                 row = [v for lm in landmarks for v in (lm.x, lm.y, lm.z, lm.visibility)]
                 X = np.array(row).reshape(1, -1)
@@ -73,8 +75,5 @@ if run:
             confidence_bar.progress(0)
             confidence_text.text("")
 
-        # Display frame with landmarks
+        # Show frame
         frame_placeholder.image(frame, channels="BGR", use_container_width=True)
-
-
-st.success("Webcam has been turned off.")
