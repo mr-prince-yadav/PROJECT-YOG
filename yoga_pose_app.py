@@ -1,25 +1,25 @@
 import streamlit as st
 import numpy as np
 import pickle
-from ultralytics import YOLO
 from PIL import Image
+from ultralytics import YOLO
 
 # --- Load Yoga Pose Classifier ---
 try:
     with open("yoga_pose_model.pkl", "rb") as f:
         clf = pickle.load(f)
 except FileNotFoundError:
-    st.error("Model file not found. Please ensure 'yoga_pose_model.pkl' is in the same directory.")
+    st.error("Model file not found. Place 'yoga_pose_model.pkl' in the app directory.")
     st.stop()
 
-# --- Load YOLOv8 Pose model ---
-pose_model = YOLO("yolov8n-pose.pt")   # auto-download on first run
+# --- Load YOLOv8 Pose Model ---
+pose_model = YOLO("yolov8n-pose.pt")  # Auto-download if not present
 
-# --- App UI ---
+# --- Streamlit UI ---
 st.title("AI Yoga Pose Detector (YOLOv8)")
-st.markdown("This app uses YOLOv8 pose detection to classify yoga poses.")
+st.markdown("Detect yoga poses using YOLOv8 pose estimation.")
 
-# --- Sidebar ---
+# Sidebar controls
 st.sidebar.header("Controls")
 run = st.sidebar.checkbox("Start Webcam", value=True)
 st.sidebar.markdown("---")
@@ -30,7 +30,7 @@ st.sidebar.header("Confidence")
 confidence_bar = st.sidebar.progress(0)
 confidence_text = st.sidebar.empty()
 
-# --- Main ---
+# Main webcam feed
 st.header("Your Webcam Feed")
 frame_placeholder = st.empty()
 
@@ -38,9 +38,8 @@ if run:
     img_file = st.camera_input("Turn on webcam")
 
     if img_file is not None:
-        # Open image with PIL
         image = Image.open(img_file)
-        frame = np.array(image)  # Convert to numpy array (RGB)
+        frame = np.array(image)  # Convert PIL to numpy array (RGB)
 
         # Run YOLOv8 pose detection
         results = pose_model.predict(frame, verbose=False)
@@ -48,7 +47,7 @@ if run:
         if results and results[0].keypoints is not None:
             kpts = results[0].keypoints.xy.cpu().numpy()
             if len(kpts) > 0:
-                person = kpts[0]
+                person = kpts[0]  # Take first detected person
                 row = person.flatten()
                 X = np.array(row).reshape(1, -1)
 
