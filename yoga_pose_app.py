@@ -1,8 +1,15 @@
 import streamlit as st
-import cv2
+
 import mediapipe as mp
 import numpy as np
 import pickle
+
+try:
+    import cv2
+except Exception as e:
+    st.error("OpenCV failed to load (binary issue).")
+    st.exception(e)
+    st.stop()
 
 # --- Load Model and Initialize MediaPipe ---
 try:
